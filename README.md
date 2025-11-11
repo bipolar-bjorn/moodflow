@@ -19,7 +19,8 @@ Welcome to **MoodFlow** — because apparently, the world needed **yet another m
 *(Pretend these are beautiful and functional; imagination required)*
 
 ![MoodFlow Screenshot](screenshot.png)
-
+> On the screenshot, it looks awkward and disproportionate — like a newborn app just discovering its limbs.
+Don’t worry, it’ll grow. Probably.
 ---
 
 ## Installation
