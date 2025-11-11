@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Entry {
     pub id: Option<i32>,
     pub date: DateTime<Local>,
@@ -9,13 +9,28 @@ pub struct Entry {
     pub note: Option<String>,
 }
 
-impl Entry {
-    pub fn new(mood: &str, note: Option<String>) -> Self {
-        Entry {
+impl Default for Entry {
+    fn default() -> Self {
+        Self {
             id: None,
             date: Local::now(),
-            mood: mood.to_string(),
-            note,
+            mood: "Stable".to_string(),
+            note: None,
         }
     }
+}
+
+impl Entry {
+    pub fn save(&self) {
+        println!("Saving entry: {} ({:?})", self.mood, self.note);
+        // TODO: insert into SQLite
+    }
+    // pub fn new(mood: &str, note: Option<String>) -> Self {
+    //     Entry {
+    //         id: None,
+    //         date: Local::now(),
+    //         mood: mood.to_string(),
+    //         note,
+    //     }
+    // }
 }
