@@ -32,8 +32,17 @@ enum Tab {
     Settings,
 }
 
+#[derive(PartialEq, Debug, Clone, Copy)]
+enum SettingsTab {
+    General,
+    Moods,
+    Tags,
+    Goals,
+}
+
 struct MoodFlowApp {
     current_tab: Tab,
+    current_settings_tab: SettingsTab,
     entries: Vec<Entry>,
     new_entry: Entry,
     settings: UserSettings,
@@ -43,6 +52,7 @@ impl Default for MoodFlowApp {
     fn default() -> Self {
         Self {
             current_tab: Tab::Add,
+            current_settings_tab: SettingsTab::General,
             entries: Vec::new(),
             new_entry: Entry::default(),
             settings: UserSettings::load(),
@@ -83,6 +93,18 @@ impl MoodFlowApp {
                 }
             });
 
+        ui.label("Tags:");
+        for tag in &self.settings.tags {
+            let mut selected = self.new_entry.tags.contains(tag);
+            if ui.checkbox(&mut selected, tag).clicked() {
+                if selected {
+                    self.new_entry.tags.push(tag.clone());
+                } else {
+                    self.new_entry.tags.retain(|t| t != tag);
+                }
+            }
+        }
+
         ui.label("Note:");
         if let Some(note) = &mut self.new_entry.note {
             ui.text_edit_multiline(note);
@@ -93,8 +115,6 @@ impl MoodFlowApp {
                 self.new_entry.note = Some(temp);
             }
         }
-        // let mut note = self.new_entry.note.clone().unwrap_or_default();
-        // ui.text_edit_multiline(&mut note);
 
         if ui.button("Save Entry").clicked() {
             self.new_entry.save();
@@ -129,15 +149,60 @@ impl MoodFlowApp {
     fn show_settings_tab(&mut self, ui: &mut egui::Ui) {
         ui.heading("Settings");
         ui.separator();
-        ui.label("Available moods:");
 
-        for mood in &mut self.settings.available_moods {
-            ui.text_edit_singleline(mood);
-        }
+        ui.horizontal(|ui| {
+            ui.selectable_value(
+                &mut self.current_settings_tab,
+                SettingsTab::General,
+                "General",
+            );
+            ui.selectable_value(&mut self.current_settings_tab, SettingsTab::Moods, "Moods");
+            ui.selectable_value(&mut self.current_settings_tab, SettingsTab::Tags, "Tags");
+            ui.selectable_value(&mut self.current_settings_tab, SettingsTab::Goals, "Goals");
+        });
+        ui.separator();
 
-        if ui.button("Add new mood").clicked() {
-            self.settings.available_moods.push(String::new());
+        match self.current_settings_tab {
+            SettingsTab::General => {
+                ui.label("General settings:");
+                ui.separator();
+            }
+            SettingsTab::Moods => {
+                ui.label("Moods settings:");
+                ui.separator();
+                ui.label("Available moods:");
+                for mood in &mut self.settings.available_moods {
+                    ui.text_edit_singleline(mood);
+                }
+
+                if ui.button("Add new mood").clicked() {
+                    self.settings.available_moods.push(String::new());
+                }
+            }
+            SettingsTab::Tags => {
+                ui.label("Tags settings:");
+                ui.separator();
+                ui.label("Available tags:");
+                for tag in &mut self.settings.tags {
+                    ui.text_edit_singleline(tag);
+                }
+                if ui.button("Add new tag").clicked() {
+                    self.settings.tags.push(String::new());
+                }
+            }
+            SettingsTab::Goals => {
+                ui.label("Goals settings:");
+                ui.separator();
+                ui.label("Available goals:");
+                for goal in &mut self.settings.goals {
+                    ui.text_edit_singleline(goal);
+                }
+                if ui.button("Add new goal").clicked() {
+                    self.settings.goals.push(String::new());
+                }
+            }
         }
+        ui.separator();
 
         if ui.button("Save settings").clicked() {
             self.settings.save();

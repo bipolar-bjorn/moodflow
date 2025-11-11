@@ -6,6 +6,7 @@ pub struct Entry {
     pub id: Option<i32>,
     pub date: DateTime<Local>,
     pub mood: String,
+    pub tags: Vec<String>,
     pub note: Option<String>,
 }
 
@@ -16,6 +17,7 @@ impl Default for Entry {
             date: Local::now(),
             mood: "Stable".to_string(),
             note: None,
+            tags: Vec::new(),
         }
     }
 }
