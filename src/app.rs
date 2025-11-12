@@ -3,40 +3,10 @@ use argon2::{Argon2, PasswordHasher};
 use eframe::egui;
 
 use crate::database::init_db;
+use crate::models::{AppScreen, SettingsTab, Tab, User};
 use crate::mood::Entry;
 use crate::settings::UserSettings;
 use rusqlite::Connection;
-
-#[derive(PartialEq)]
-enum AppScreen {
-    Welcome,
-    AddUser,
-    MainApp,
-}
-
-#[allow(dead_code)]
-struct User {
-    id: Option<i64>,
-    name: String,
-    pin_hash: Option<String>,
-    email: Option<String>,
-}
-
-#[derive(PartialEq, Debug, Clone, Copy)]
-enum Tab {
-    Add,
-    History,
-    Analytics,
-    Settings,
-}
-
-#[derive(PartialEq, Debug, Clone, Copy)]
-enum SettingsTab {
-    General,
-    Moods,
-    Tags,
-    Goals,
-}
 
 pub struct MoodFlowApp {
     screen: AppScreen,
@@ -74,29 +44,37 @@ impl Default for MoodFlowApp {
 
 impl eframe::App for MoodFlowApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.current_tab, Tab::Add, "➕ Add");
-                ui.selectable_value(&mut self.current_tab, Tab::History, "📜 History");
-                ui.selectable_value(&mut self.current_tab, Tab::Analytics, "📈 Analytics");
-                ui.selectable_value(&mut self.current_tab, Tab::Settings, "⚙️ Settings");
-            });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| match self.screen {
-            AppScreen::Welcome => self.show_welcome_screen(ui),
-            AppScreen::AddUser => self.show_add_user_screen(ui),
-            AppScreen::MainApp => {
-                self.show_main_app_screen(ui);
-                // main app: show tabs content
-                match self.current_tab {
-                    Tab::Add => self.show_add_tab(ui),
-                    Tab::History => self.show_history_tab(ui),
-                    Tab::Analytics => self.show_analytics_tab(ui),
-                    Tab::Settings => self.show_settings_tab(ui),
-                }
+        match self.screen {
+            AppScreen::Welcome => {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    self.show_welcome_screen(ui);
+                });
             }
-        });
+            AppScreen::AddUser => {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    self.show_add_user_screen(ui);
+                });
+            }
+            AppScreen::MainApp => {
+                egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(&mut self.current_tab, Tab::Add, "➕ Add");
+                        ui.selectable_value(&mut self.current_tab, Tab::History, "📜 History");
+                        ui.selectable_value(&mut self.current_tab, Tab::Analytics, "📈 Analytics");
+                        ui.selectable_value(&mut self.current_tab, Tab::Settings, "⚙️ Settings");
+                    });
+                });
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    self.show_main_app_screen(ui);
+                    match self.current_tab {
+                        Tab::Add => self.show_add_tab(ui),
+                        Tab::History => self.show_history_tab(ui),
+                        Tab::Analytics => self.show_analytics_tab(ui),
+                        Tab::Settings => self.show_settings_tab(ui),
+                    }
+                });
+            }
+        }
 
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.horizontal(|ui| ui.label("2025 (c) 3PiStudio"));
