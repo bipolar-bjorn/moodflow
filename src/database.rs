@@ -1,45 +1,78 @@
-pub fn init_db() {
-    // TODO: implement SQLite storage for moods
-    //     let connection = Connection::open("moodflow.db")?;
-    //     connection.execute(
-    //         "CREATE TABLE IF NOT EXISTS entries (
-    //             id INTEGER PRIMARY KEY AUTOINCREMENT,
-    //             date TEXT NOT NULL,
-    //             mood TEXT NOT NULL,
-    //             note TEXT
-    //         )",
-    //         [],
-    //     )?;
-    //     Ok(connection)
-    // }
+use rusqlite::{Connection, Result};
 
-    // pub fn add_entry(connection: &Connection, entry: &Entry) -> Result<()> {
-    //     connection.execute(
-    //         "INSERT INTO entries (date, mood, note) VALUES (?1, ?2, ?3)",
-    //         rusqlite::params![
-    //         entry.date.to_rfc3339(),
-    //         entry.mood,
-    //         entry.note.as_deref(),
-    //         ],
-    //     )?;
-    //     Ok(())
-    // }
+pub fn init_db() -> Result<Connection> {
+    let connection = Connection::open("moodflow.db")?;
+    connection.execute_batch(
+        r#"
+        -- USERS
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            pin_hash TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
 
-    // pub fn get_entries(connection: &Connection) -> Result<Vec<Entry>> {
-    //     let mut statement = connection.prepare("SELECT id, date, mood, note FROM entries")?;
-    //     let mood_iter = statement.query_map([], |row| {
-    //         let date_str: String = row.get(1)?;
-    //         Ok(Entry {
-    //             id: row.get(0)?,
-    //             date: date_str.parse::<chrono::DateTime<Local>>().unwrap_or_else(|_| Local::now()),
-    //             mood: row.get(2)?,
-    //             note: row.get(3)?,
-    //         })
-    //     })?;
+        -- MOODS
+        CREATE TABLE IF NOT EXISTS moods (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            color TEXT DEFAULT '#999999'
+        );
 
-    //     let mut entries = Vec::new();
-    //     for entry in mood_iter {
-    //         entries.push(entry?);
-    //     }
-    //     Ok(entries)
+        -- TAGS
+        CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL
+        );
+
+        -- GOALS
+        CREATE TABLE IF NOT EXISTS goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            completed INTEGER DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        -- ENTRIES
+        CREATE TABLE IF NOT EXISTS entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            mood_id INTEGER NOT NULL,
+            note TEXT,
+            goal_id INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (mood_id) REFERENCES moods(id),
+            FOREIGN KEY (goal_id) REFERENCES goals(id)
+        );
+
+        -- ENTRY_TAGS
+        CREATE TABLE IF NOT EXISTS entry_tags (
+            entry_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            PRIMARY KEY (entry_id, tag_id),
+            FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        );
+
+        -- STATS CACHE (optional)
+        CREATE TABLE IF NOT EXISTS stats_cache (
+            user_id INTEGER NOT NULL,
+            metric TEXT NOT NULL,
+            value REAL,
+            updated_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (user_id, metric),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        -- INDEXES
+        CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries (user_id, date);
+        CREATE INDEX IF NOT EXISTS idx_entry_tags_tag ON entry_tags (tag_id);
+        CREATE INDEX IF NOT EXISTS idx_goals_user ON goals (user_id);
+    "#,
+    )?;
+    Ok(connection)
 }

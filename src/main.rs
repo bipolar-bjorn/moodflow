@@ -1,27 +1,28 @@
+use argon2::password_hash::SaltString;
+use argon2::{Argon2, PasswordHasher};
 use eframe::egui;
 mod database;
 mod mood;
 mod settings;
 
+use database::init_db;
 use mood::Entry;
+use rusqlite::Connection;
 use settings::UserSettings;
 
-fn main() -> eframe::Result<()> {
-    let viewport = egui::ViewportBuilder::default()
-        .with_inner_size([350.0, 600.0])
-        .with_min_inner_size([250.0, 400.0])
-        .with_title("MoodFlow");
+#[derive(PartialEq)]
+enum AppScreen {
+    Welcome,
+    AddUser,
+    MainApp,
+}
 
-    let options = eframe::NativeOptions {
-        viewport: viewport,
-        ..Default::default()
-    };
-
-    eframe::run_native(
-        "MoodFlow",
-        options,
-        Box::new(|_cc| Ok(Box::new(MoodFlowApp::default()))),
-    )
+#[allow(dead_code)]
+struct User {
+    id: Option<i64>,
+    name: String,
+    pin_hash: Option<String>,
+    email: Option<String>,
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -41,23 +42,55 @@ enum SettingsTab {
 }
 
 struct MoodFlowApp {
+    screen: AppScreen,
+    current_user: Option<User>,
+    db_connection: Option<Connection>,
     current_tab: Tab,
     current_settings_tab: SettingsTab,
     entries: Vec<Entry>,
     new_entry: Entry,
     settings: UserSettings,
+    temp_name: String,
+    temp_pin: String,
+    temp_email: String,
+    temp_sync_cloud: bool,
 }
 
 impl Default for MoodFlowApp {
     fn default() -> Self {
         Self {
+            screen: AppScreen::Welcome,
+            current_user: None,
+            db_connection: None,
             current_tab: Tab::Add,
             current_settings_tab: SettingsTab::General,
             entries: Vec::new(),
             new_entry: Entry::default(),
             settings: UserSettings::load(),
+            temp_name: String::new(),
+            temp_pin: String::new(),
+            temp_email: String::new(),
+            temp_sync_cloud: false,
         }
     }
+}
+
+fn main() -> eframe::Result<()> {
+    let viewport = egui::ViewportBuilder::default()
+        .with_inner_size([350.0, 600.0])
+        .with_min_inner_size([250.0, 400.0])
+        .with_title("MoodFlow");
+
+    let options = eframe::NativeOptions {
+        viewport: viewport,
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "MoodFlow",
+        options,
+        Box::new(|_cc| Ok(Box::new(MoodFlowApp::default()))),
+    )
 }
 
 impl eframe::App for MoodFlowApp {
@@ -71,16 +104,94 @@ impl eframe::App for MoodFlowApp {
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| match self.current_tab {
-            Tab::Add => self.show_add_tab(ui),
-            Tab::History => self.show_history_tab(ui),
-            Tab::Analytics => self.show_analytics_tab(ui),
-            Tab::Settings => self.show_settings_tab(ui),
+        egui::CentralPanel::default().show(ctx, |ui| match self.screen {
+            AppScreen::Welcome => self.show_welcome_screen(ui),
+            AppScreen::AddUser => self.show_add_user_screen(ui),
+            AppScreen::MainApp => {
+                self.show_main_app_screen(ui);
+                // main app: show tabs content
+                match self.current_tab {
+                    Tab::Add => self.show_add_tab(ui),
+                    Tab::History => self.show_history_tab(ui),
+                    Tab::Analytics => self.show_analytics_tab(ui),
+                    Tab::Settings => self.show_settings_tab(ui),
+                }
+            }
+        });
+
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| ui.label("2025 (c) 3PiStudio"));
         });
     }
 }
 
 impl MoodFlowApp {
+    fn show_welcome_screen(&mut self, ui: &mut egui::Ui) {
+        ui.vertical_centered(|ui| {
+            ui.heading("Welcome to MoodFlow");
+            ui.label("Track your moods safely and beautifully");
+            if ui.button("Add User").clicked() {
+                self.screen = AppScreen::AddUser;
+            }
+        });
+    }
+
+    fn show_add_user_screen(&mut self, ui: &mut egui::Ui) {
+        ui.vertical(|ui| {
+            ui.heading("Create new user");
+
+            ui.label("Name:");
+            ui.text_edit_singleline(&mut self.temp_name);
+
+            ui.label("PIN Code (4-6 digits, optional):");
+            ui.text_edit_singleline(&mut self.temp_pin);
+
+            ui.label("Email (Optional):");
+            ui.text_edit_singleline(&mut self.temp_email);
+
+            ui.checkbox(&mut self.temp_sync_cloud, "Sync with cloud (optional)");
+
+            if ui.button("Done").clicked() {
+                let pin_hash = if !self.temp_pin.is_empty() {
+                    let mut salt_bytes = [0u8; 16];
+                    let salt = SaltString::encode_b64(&mut salt_bytes).unwrap();
+                    Some(
+                        Argon2::default()
+                            .hash_password(self.temp_pin.as_bytes(), &salt)
+                            .unwrap()
+                            .to_string(),
+                    )
+                } else {
+                    None
+                };
+
+                let user = User {
+                    id: None,
+                    name: self.temp_name.clone(),
+                    pin_hash,
+                    email: if self.temp_email.is_empty() {
+                        None
+                    } else {
+                        Some(self.temp_email.clone())
+                    },
+                };
+                self.current_user = Some(user);
+
+                self.db_connection = Some(init_db().unwrap());
+                self.screen = AppScreen::MainApp;
+            }
+        });
+    }
+
+    fn show_main_app_screen(&mut self, ui: &mut egui::Ui) {
+        ui.heading(format!(
+            "Hello, {}!",
+            self.current_user.as_ref().unwrap().name
+        ));
+        ui.separator();
+        ui.label("Here goes the main app UI (Add/History/Analytics/Settings)...");
+    }
+
     fn show_add_tab(&mut self, ui: &mut egui::Ui) {
         ui.heading("Add Mood Entry");
         ui.separator();
